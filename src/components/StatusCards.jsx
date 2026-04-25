@@ -7,10 +7,10 @@ const CLEANUP_MODES = {
   LOW: 'MONITOR',
 }
 
-export default function StatusCards({ selectedObject, position }) {
+export default function StatusCards({ selectedObject, position, captureMethod, methodLabel }) {
   const speed = position ? `${position.velocity.toFixed(2)} km/s` : '—'
   const altitude = position ? `${position.altitude.toFixed(1)} km` : '—'
-  const cleanupMode = selectedObject ? CLEANUP_MODES[selectedObject.riskLevel] || '—' : '—'
+  const cleanupMode = methodLabel ? methodLabel.toUpperCase() : '—'
 
   const cards = [
     {

@@ -10,9 +10,6 @@ const RISK_COLORS = {
   LOW: 0x2ed573,
 }
 
-const INTERCEPT_DURATION_MS = 6000
-const NET_CAPTURE_DURATION_MS = 4000
-
 function createEarthCanvasTexture(renderer) {
   const width = 1024
   const height = 512
@@ -111,7 +108,8 @@ export default function OrbitViewer({
   onPositionUpdate,
   missionPhase,
   simulationActive,
-  phaseStartedAt,
+  captureProgress,
+  captureMethod = 'NET_CAPTURE',
 }) {
   const containerRef = useRef(null)
   const [viewerReady, setViewerReady] = useState(false)
@@ -132,6 +130,9 @@ export default function OrbitViewer({
   const satrec = useRef(null)
   const debrisPositionRef = useRef(new THREE.Vector3())
   const cleanupBasePositionRef = useRef(new THREE.Vector3())
+  const debrisLabelRef = useRef(null)
+  const cleanupLabelRef = useRef(null)
+  const debrisHaloRef = useRef(null)
 
   useEffect(() => {
     if (!containerRef.current || rendererRef.current) return
@@ -247,7 +248,18 @@ export default function OrbitViewer({
       const cleanupBasePos = cleanupBasePositionRef.current
 
       if (debrisMeshRef.current) {
+        // Reset scale and color
         debrisMeshRef.current.scale.setScalar(1)
+        if (missionPhase !== 'SECURED') {
+           // We have a group now, find the core and halo
+           debrisMeshRef.current.children[0].material.color.setHex(RISK_COLORS[selectedObject?.riskLevel] || RISK_COLORS.MEDIUM)
+           debrisMeshRef.current.children[1].material.color.setHex(RISK_COLORS[selectedObject?.riskLevel] || RISK_COLORS.MEDIUM)
+           debrisMeshRef.current.children[1].material.opacity = 0.3
+        }
+      }
+      if (cleanupMeshRef.current) {
+        cleanupMeshRef.current.scale.setScalar(1)
+        cleanupMeshRef.current.material.color.setHex(0x00d4ff)
       }
       if (orbitLineRef.current?.material) {
         orbitLineRef.current.material.color.setHex(0x00d4ff)
@@ -255,49 +267,125 @@ export default function OrbitViewer({
       }
       if (interceptLineRef.current) {
         interceptLineRef.current.visible = Boolean(debrisMeshRef.current && cleanupMeshRef.current)
+        interceptLineRef.current.material.opacity = 0.8
       }
       if (netRingRef.current) {
         netRingRef.current.visible = false
       }
 
       if (simulationActive && missionPhase === 'TRACKING') {
-        const pulse = 1 + 0.15 * Math.sin(Date.now() * 0.008)
+        const pulse = 1 + 0.4 * Math.sin(Date.now() * 0.008)
         if (debrisMeshRef.current) {
-          debrisMeshRef.current.scale.setScalar(pulse)
+          debrisMeshRef.current.children[1].scale.setScalar(pulse)
+          debrisMeshRef.current.children[1].material.opacity = 0.5 + 0.2 * Math.sin(Date.now() * 0.015)
         }
         if (orbitLineRef.current?.material) {
           orbitLineRef.current.material.color.setHex(0x74f4ff)
-          orbitLineRef.current.material.opacity = 0.9
+          orbitLineRef.current.material.opacity = 1.0
+        }
+        if (netRingRef.current) {
+          netRingRef.current.visible = true
+          netRingRef.current.position.copy(debrisPos)
+          netRingRef.current.scale.setScalar(1.5 + 0.5 * Math.sin(Date.now() * 0.01))
+          netRingRef.current.material.opacity = 0.15
         }
       }
 
       if (cleanupMeshRef.current && debrisMeshRef.current) {
-        if (simulationActive && missionPhase === 'INTERCEPT' && phaseStartedAt) {
-          const elapsed = Date.now() - phaseStartedAt
-          const progress = Math.min(Math.max(elapsed / INTERCEPT_DURATION_MS, 0), 1)
-          const approachFactor = 0.82 * progress
+        if (simulationActive && missionPhase === 'INTERCEPT') {
+          // Move from trailing position to debris position based on captureProgress
+          const approachFactor = Math.min(captureProgress * 1.5, 0.95)
           const simCleanup = cleanupBasePos.clone().lerp(debrisPos, approachFactor)
           cleanupMeshRef.current.position.copy(simCleanup)
+          
+          const pulse = 1 + 0.4 * Math.sin(Date.now() * 0.012)
+          cleanupMeshRef.current.scale.setScalar(pulse)
+          cleanupMeshRef.current.material.color.setHex(0x74f4ff)
+
           if (interceptLineRef.current) {
-            interceptLineRef.current.geometry.setFromPoints([simCleanup, debrisPos])
+            const distance = simCleanup.distanceTo(debrisPos)
+            interceptLineRef.current.position.copy(simCleanup)
+            interceptLineRef.current.lookAt(debrisPos)
+            interceptLineRef.current.scale.set(1, 1, distance)
             interceptLineRef.current.visible = true
+            interceptLineRef.current.material.opacity = 0.6 + 0.4 * Math.sin(Date.now() * 0.02)
           }
         } else {
           cleanupMeshRef.current.position.copy(cleanupBasePos)
           if (interceptLineRef.current) {
-            interceptLineRef.current.geometry.setFromPoints([cleanupBasePos, debrisPos])
+            const distance = cleanupBasePos.distanceTo(debrisPos)
+            interceptLineRef.current.position.copy(cleanupBasePos)
+            interceptLineRef.current.lookAt(debrisPos)
+            interceptLineRef.current.scale.set(1, 1, distance)
           }
         }
       }
 
-      if (simulationActive && missionPhase === 'NET CAPTURE' && phaseStartedAt && netRingRef.current) {
-        const elapsed = Date.now() - phaseStartedAt
-        const progress = Math.min(Math.max(elapsed / NET_CAPTURE_DURATION_MS, 0), 1)
-        const ringScale = 0.35 + progress * 2.2
+      if (simulationActive && missionPhase === 'NET_CAPTURE' && netRingRef.current) {
+        const ringScale = 0.5 + captureProgress * 4.0
         netRingRef.current.visible = true
         netRingRef.current.position.copy(debrisPos)
         netRingRef.current.scale.setScalar(ringScale)
-        netRingRef.current.material.opacity = 0.35 * (1 - progress) + 0.08
+        netRingRef.current.material.opacity = Math.max(0.6 * (1 - captureProgress), 0.15)
+        
+        // Ensure intercept line connects to debris accurately
+        if (interceptLineRef.current) {
+           const approachFactor = 0.95
+           const simCleanup = cleanupBasePos.clone().lerp(debrisPos, approachFactor)
+           cleanupMeshRef.current.position.copy(simCleanup)
+           const distance = simCleanup.distanceTo(debrisPos)
+           interceptLineRef.current.position.copy(simCleanup)
+           interceptLineRef.current.lookAt(debrisPos)
+           interceptLineRef.current.scale.set(1, 1, distance)
+        }
+      }
+
+      if (missionPhase === 'SECURED') {
+        if (netRingRef.current) {
+          netRingRef.current.visible = true
+          netRingRef.current.position.copy(debrisPos)
+          netRingRef.current.scale.setScalar(3.5)
+          netRingRef.current.material.opacity = 0.4 + 0.1 * Math.sin(Date.now() * 0.005)
+        }
+        if (debrisMeshRef.current) {
+          // Change to green/cyan for secured
+          debrisMeshRef.current.children[0].material.color.setHex(0x2ed573)
+          debrisMeshRef.current.children[1].material.color.setHex(0x2ed573)
+          debrisMeshRef.current.children[1].material.opacity = 0.2
+        }
+        if (interceptLineRef.current) {
+          interceptLineRef.current.material.opacity = 0.2
+        }
+        if (cleanupMeshRef.current) {
+           const approachFactor = 0.95
+           const simCleanup = cleanupBasePos.clone().lerp(debrisPos, approachFactor)
+           cleanupMeshRef.current.position.copy(simCleanup)
+        }
+      }
+
+      // Update 2D labels
+      if (cameraRef.current && rendererRef.current && containerRef.current) {
+         const updateLabel = (meshRef, labelRef, isVisible) => {
+           if (!labelRef.current) return
+           // If meshRef is a group, position based on the group
+           if (meshRef.current && isVisible) {
+             const vector = meshRef.current.position.clone()
+             vector.project(cameraRef.current)
+             if (vector.z > 1) {
+                labelRef.current.style.opacity = 0
+                return
+             }
+             const x = (vector.x * 0.5 + 0.5) * containerRef.current.clientWidth
+             const y = (vector.y * -0.5 + 0.5) * containerRef.current.clientHeight
+             labelRef.current.style.transform = `translate(-50%, -150%) translate(${x}px, ${y}px)`
+             labelRef.current.style.opacity = 1
+           } else {
+             labelRef.current.style.opacity = 0
+           }
+         }
+
+         updateLabel(debrisMeshRef, debrisLabelRef, true)
+         updateLabel(cleanupMeshRef, cleanupLabelRef, simulationActive && missionPhase !== 'SECURED' && missionPhase !== 'IDLE')
       }
 
       controls.update()
@@ -343,32 +431,44 @@ export default function OrbitViewer({
     const now = new Date()
     const pathPositions = generateOrbitPath(satrec.current, now, 90, 60)
 
-    const orbitGeometry = new THREE.BufferGeometry().setFromPoints(pathPositions)
-    const orbitMaterial = new THREE.LineBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.5 })
-    orbitLineRef.current = new THREE.Line(orbitGeometry, orbitMaterial)
+    const orbitCurve = new THREE.CatmullRomCurve3(pathPositions, true)
+    const orbitGeometry = new THREE.TubeGeometry(orbitCurve, 128, 0.005, 8, true)
+    const orbitMaterial = new THREE.MeshBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.8 })
+    orbitLineRef.current = new THREE.Mesh(orbitGeometry, orbitMaterial)
     scene.add(orbitLineRef.current)
 
-    const debrisGeom = new THREE.SphereGeometry(0.02, 16, 16)
+    const debrisGroup = new THREE.Group()
+    const debrisGeom = new THREE.SphereGeometry(0.05, 32, 32)
     const debrisMat = new THREE.MeshBasicMaterial({ color: riskColor })
-    debrisMeshRef.current = new THREE.Mesh(debrisGeom, debrisMat)
+    const debrisCore = new THREE.Mesh(debrisGeom, debrisMat)
+    
+    const haloGeom = new THREE.SphereGeometry(0.08, 32, 32)
+    const haloMat = new THREE.MeshBasicMaterial({ color: riskColor, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending })
+    const debrisHalo = new THREE.Mesh(haloGeom, haloMat)
+    
+    debrisGroup.add(debrisCore)
+    debrisGroup.add(debrisHalo)
+    debrisMeshRef.current = debrisGroup
     scene.add(debrisMeshRef.current)
 
-    const cleanupGeom = new THREE.SphereGeometry(0.015, 16, 16)
+    const cleanupGeom = new THREE.SphereGeometry(0.04, 32, 32)
     const cleanupMat = new THREE.MeshBasicMaterial({ color: 0x00d4ff })
     cleanupMeshRef.current = new THREE.Mesh(cleanupGeom, cleanupMat)
     scene.add(cleanupMeshRef.current)
 
-    const interceptGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()])
-    const interceptMat = new THREE.LineBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.6 })
-    interceptLineRef.current = new THREE.Line(interceptGeom, interceptMat)
+    const interceptGeom = new THREE.CylinderGeometry(0.004, 0.004, 1, 8)
+    interceptGeom.translate(0, 0.5, 0)
+    interceptGeom.rotateX(Math.PI / 2)
+    const interceptMat = new THREE.MeshBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.8 })
+    interceptLineRef.current = new THREE.Mesh(interceptGeom, interceptMat)
     scene.add(interceptLineRef.current)
 
-    const ringGeom = new THREE.RingGeometry(0.04, 0.08, 48)
+    const ringGeom = new THREE.SphereGeometry(0.04, 16, 16)
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0x00d4ff,
       transparent: true,
       opacity: 0.28,
-      side: THREE.DoubleSide,
+      wireframe: true,
     })
     netRingRef.current = new THREE.Mesh(ringGeom, ringMat)
     netRingRef.current.visible = false
@@ -382,7 +482,11 @@ export default function OrbitViewer({
       if (!info || !cleanupInfo || !debrisMeshRef.current || !cleanupMeshRef.current || !interceptLineRef.current) return
 
       const debrisPos = geodeticToVector3(info.latitude, info.longitude, info.altitude)
-      const cleanupPos = geodeticToVector3(cleanupInfo.latitude, cleanupInfo.longitude, cleanupInfo.altitude)
+      const cleanupPosBase = geodeticToVector3(cleanupInfo.latitude, cleanupInfo.longitude, cleanupInfo.altitude)
+      
+      // Offset highly outward from earth center to ensure clear demo visibility
+      const outwardDir = cleanupPosBase.clone().normalize()
+      const cleanupPos = cleanupPosBase.add(outwardDir.multiplyScalar(0.08))
 
       debrisPositionRef.current.copy(debrisPos)
       cleanupBasePositionRef.current.copy(cleanupPos)
@@ -416,7 +520,7 @@ export default function OrbitViewer({
     controlsRef.current.target.copy(targetPos)
 
     const dir = targetPos.clone().normalize()
-    cameraRef.current.position.copy(targetPos).add(dir.multiplyScalar(0.5))
+    cameraRef.current.position.copy(targetPos).add(dir.multiplyScalar(3.2))
   }, [])
 
   const handleResetView = useCallback(() => {
@@ -425,6 +529,12 @@ export default function OrbitViewer({
     controlsRef.current.target.set(0, 0, 0)
     cameraRef.current.position.set(0, 2, 5)
   }, [])
+
+  useEffect(() => {
+    if (simulationActive && missionPhase === 'TRACKING') {
+      handleFocusTarget()
+    }
+  }, [simulationActive, missionPhase, handleFocusTarget])
 
   return (
     <div className="orbit-viewer-wrapper">
@@ -448,9 +558,34 @@ export default function OrbitViewer({
           Reset View
         </button>
       </div>
-      {simulationActive && missionPhase === 'NET CAPTURE' && (
-        <div className="net-label">NET DEPLOYED</div>
-      )}
+      <div className="simulation-labels">
+        {simulationActive && missionPhase === 'TRACKING' && <div className="sim-label tracking">TARGET LOCKED</div>}
+        {simulationActive && missionPhase === 'INTERCEPT' && <div className="sim-label intercept">INTERCEPTING</div>}
+        {simulationActive && missionPhase === 'NET_CAPTURE' && (
+          <div className="sim-label capture">
+            {captureMethod === 'NET_CAPTURE' && 'NET DEPLOYED'}
+            {captureMethod === 'ROBOTIC_ARM' && 'ARM GRAPPLED'}
+            {captureMethod === 'MAGNETIC_TETHER' && 'TETHER ATTACHED'}
+            {captureMethod === 'LASER_PUSH' && 'LASER FIRING'}
+          </div>
+        )}
+        {missionPhase === 'SECURED' && <div className="sim-label secured">TARGET SECURED</div>}
+      </div>
+      <div className="sim-disclaimer-overlay">
+        Visualized cleanup concept — sizes and motion exaggerated for demo clarity.
+      </div>
+      <div className="viewer-legend">
+        <div className="legend-item"><span className="legend-dot debris" /> Debris Target</div>
+        <div className="legend-item"><span className="legend-dot cleanup" /> CleanupSat-1</div>
+        <div className="legend-item"><span className="legend-dot secured" /> Secured Target</div>
+        <div className="legend-item"><span className="legend-line intercept" /> Intercept Path</div>
+      </div>
+      <div ref={debrisLabelRef} className="object-label debris-label" style={{ position: 'absolute', opacity: 0, top: 0, left: 0 }}>
+        DEBRIS TARGET
+      </div>
+      <div ref={cleanupLabelRef} className="object-label cleanup-label" style={{ position: 'absolute', opacity: 0, top: 0, left: 0 }}>
+        CLEANUPSAT-1
+      </div>
       {!viewerReady && (
         <div className="viewer-loading">
           <div className="loading-spinner" />

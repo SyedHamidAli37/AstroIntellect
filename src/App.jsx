@@ -37,10 +37,12 @@ export default function App() {
   const [tleError, setTleError] = useState(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [cleanupMethod, setCleanupMethod] = useState('NET_CAPTURE')
-  const [missionPhase, setMissionPhase] = useState('TRACKING')
+  const [missionPhase, setMissionPhase] = useState('IDLE')
   const [simulationActive, setSimulationActive] = useState(false)
   const [phaseStartedAt, setPhaseStartedAt] = useState(null)
+  const [captureProgress, setCaptureProgress] = useState(0)
   const phaseTimeoutsRef = useRef([])
+  const phaseProgressTimerRef = useRef(null)
 
   const selectedObject = ORBITAL_OBJECTS.find((o) => o.id === selectedId)
 
@@ -69,16 +71,59 @@ export default function App() {
     return () => {
       phaseTimeoutsRef.current.forEach((id) => clearTimeout(id))
       phaseTimeoutsRef.current = []
+      if (phaseProgressTimerRef.current) {
+        clearInterval(phaseProgressTimerRef.current)
+        phaseProgressTimerRef.current = null
+      }
     }
   }, [])
 
   useEffect(() => {
     phaseTimeoutsRef.current.forEach((id) => clearTimeout(id))
     phaseTimeoutsRef.current = []
+    if (phaseProgressTimerRef.current) {
+      clearInterval(phaseProgressTimerRef.current)
+      phaseProgressTimerRef.current = null
+    }
     setSimulationActive(false)
-    setMissionPhase('TRACKING')
+    setMissionPhase('IDLE')
     setPhaseStartedAt(null)
+    setCaptureProgress(0)
   }, [selectedId])
+
+  useEffect(() => {
+    if (!simulationActive || !phaseStartedAt) {
+      setCaptureProgress(missionPhase === 'SECURED' ? 1 : 0)
+      return
+    }
+
+    if (missionPhase === 'SECURED') {
+      setCaptureProgress(1)
+      return
+    }
+
+    const duration = PHASE_DURATIONS[missionPhase]
+    if (!duration) {
+      setCaptureProgress(0)
+      return
+    }
+
+    const updateProgress = () => {
+      const elapsed = Date.now() - phaseStartedAt
+      const progress = Math.min(Math.max(elapsed / duration, 0), 1)
+      setCaptureProgress(progress)
+    }
+
+    updateProgress()
+    phaseProgressTimerRef.current = setInterval(updateProgress, 80)
+
+    return () => {
+      if (phaseProgressTimerRef.current) {
+        clearInterval(phaseProgressTimerRef.current)
+        phaseProgressTimerRef.current = null
+      }
+    }
+  }, [missionPhase, phaseStartedAt, simulationActive])
 
   const handleSelect = (id) => {
     setSelectedId(id)
@@ -93,6 +138,7 @@ export default function App() {
     setSimulationActive(true)
     setMissionPhase('TRACKING')
     setPhaseStartedAt(trackingStart)
+    setCaptureProgress(0)
 
     const interceptTimeout = setTimeout(() => {
       const interceptStart = Date.now()
@@ -102,23 +148,33 @@ export default function App() {
 
     const netTimeout = setTimeout(() => {
       const netStart = Date.now()
-      setMissionPhase('NET CAPTURE')
+      setMissionPhase('NET_CAPTURE')
       setPhaseStartedAt(netStart)
     }, PHASE_DURATIONS.TRACKING + PHASE_DURATIONS.INTERCEPT)
 
     const securedTimeout = setTimeout(() => {
+      setSimulationActive(false)
       setMissionPhase('SECURED')
       setPhaseStartedAt(Date.now())
+      setCaptureProgress(1)
     }, PHASE_DURATIONS.TRACKING + PHASE_DURATIONS.INTERCEPT + PHASE_DURATIONS.NET_CAPTURE)
 
     phaseTimeoutsRef.current = [interceptTimeout, netTimeout, securedTimeout]
   }, [])
 
-  const phaseMessageMap = {
-    TRACKING: 'Tracking target and estimating orbit',
-    INTERCEPT: 'CleanupSat-1 matching orbit and approaching target',
-    'NET CAPTURE': 'NET DEPLOYED',
-    SECURED: 'Target secured for controlled deorbit planning',
+  const getPhaseMessage = (phase, method) => {
+    const maps = {
+      IDLE: 'Ready to begin conceptual cleanup simulation.',
+      TRACKING: 'Tracking target and estimating orbit from public TLE data',
+      INTERCEPT: 'CleanupSat-1 is matching orbit and approaching the debris',
+      SECURED: 'Target secured for controlled deorbit planning',
+    }
+    if (phase !== 'NET_CAPTURE') return maps[phase]
+    if (method === 'NET_CAPTURE') return 'Deploying capture net around target'
+    if (method === 'ROBOTIC_ARM') return 'Grappling target with robotic arm'
+    if (method === 'MAGNETIC_TETHER') return 'Attaching magnetic tether for deorbit'
+    if (method === 'LASER_PUSH') return 'Firing laser for small debris deflection'
+    return 'Executing cleanup method'
   }
 
   const RISK_COLORS = {
@@ -215,7 +271,12 @@ export default function App() {
         </div>
       </header>
 
-      <StatusCards selectedObject={selectedObject} position={position} />
+      <StatusCards 
+        selectedObject={selectedObject} 
+        position={position} 
+        captureMethod={cleanupMethod} 
+        methodLabel={METHOD_OPTIONS[cleanupMethod]} 
+      />
 
       <main className="main-content">
         <div className="globe-area">
@@ -256,6 +317,7 @@ export default function App() {
                 missionPhase={missionPhase}
                 simulationActive={simulationActive}
                 phaseStartedAt={phaseStartedAt}
+                captureProgress={captureProgress}
                 captureMethod={cleanupMethod}
               />
             </ErrorBoundary>
@@ -275,10 +337,11 @@ export default function App() {
             tleSource={tleData?.source}
             missionPhase={missionPhase}
             simulationActive={simulationActive}
+            captureProgress={captureProgress}
             captureMethod={cleanupMethod}
             onCaptureMethodChange={setCleanupMethod}
             onRunCaptureSimulation={runCaptureSimulation}
-            phaseMessage={phaseMessageMap[missionPhase]}
+            phaseMessage={getPhaseMessage(missionPhase, cleanupMethod)}
             methodLabel={METHOD_OPTIONS[cleanupMethod]}
           />
         </ErrorBoundary>

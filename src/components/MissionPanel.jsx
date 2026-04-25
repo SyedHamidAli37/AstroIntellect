@@ -23,6 +23,7 @@ export default function MissionPanel({
   tleSource,
   missionPhase,
   simulationActive,
+  captureProgress,
   captureMethod,
   onCaptureMethodChange,
   onRunCaptureSimulation,
@@ -102,8 +103,17 @@ export default function MissionPanel({
           </span>
         </div>
         <div className="phase-message">{phaseMessage}</div>
+        <div className="phase-progress-wrap">
+          <div className="phase-progress-label">
+            <span>Phase Progress</span>
+            <span>{Math.round(captureProgress * 100)}%</span>
+          </div>
+          <div className="phase-progress-track">
+            <div className="phase-progress-fill" style={{ width: `${Math.round(captureProgress * 100)}%` }} />
+          </div>
+        </div>
         <div className="phase-note">
-          Using estimated position and velocity from public orbital data for a conceptual cleanup simulation.
+          Conceptual cleanup simulation based on estimated orbital state.
         </div>
       </div>
 
@@ -117,12 +127,22 @@ export default function MissionPanel({
           <option value="MAGNETIC_TETHER">Magnetic Tether</option>
           <option value="LASER_PUSH">Laser Push</option>
         </select>
-        <div className="recommendation-method">{methodLabel}</div>
+        <div className="recommendation-method">
+          {captureMethod === 'NET_CAPTURE' && 'Net Capture Recommended'}
+          {captureMethod === 'ROBOTIC_ARM' && 'Robotic Arm Capture'}
+          {captureMethod === 'MAGNETIC_TETHER' && 'Magnetic Tether Deorbit'}
+          {captureMethod === 'LASER_PUSH' && 'Laser Push Deflection'}
+        </div>
         <div className="recommendation-reason">
-          {captureMethod === 'NET_CAPTURE' && (<><span className="reason-label">Net Capture:</span> Best for tumbling or non-cooperative debris because it avoids precise docking.</>)}
-          {captureMethod === 'ROBOTIC_ARM' && (<><span className="reason-label">Robotic Arm:</span> Best for large stable debris.</>)}
-          {captureMethod === 'MAGNETIC_TETHER' && (<><span className="reason-label">Magnetic Tether:</span> Best for metallic debris and deorbit support.</>)}
-          {captureMethod === 'LASER_PUSH' && (<><span className="reason-label">Laser Push:</span> Best for small debris deflection concept.</>)}
+          {captureMethod === 'NET_CAPTURE' && (<><span className="reason-label">Reason:</span> Best for tumbling or non-cooperative debris because it does not require precise docking.</>)}
+          {captureMethod === 'ROBOTIC_ARM' && (<><span className="reason-label">Reason:</span> Best for large, stable debris where precise docking and gripping are possible.</>)}
+          {captureMethod === 'MAGNETIC_TETHER' && (<><span className="reason-label">Reason:</span> Useful for metallic debris and long-duration deorbit support with lower propellant use.</>)}
+          {captureMethod === 'LASER_PUSH' && (<><span className="reason-label">Reason:</span> A concept for small debris deflection where physical capture is difficult.</>)}
+        </div>
+        <div className="recommendation-tags">
+          <span className="tag">Concept</span>
+          <span className="tag">Public TLE Data</span>
+          <span className="tag">Estimated Dynamics</span>
         </div>
       </div>
 
@@ -131,22 +151,10 @@ export default function MissionPanel({
           <Clock size={13} /> Mission Timeline
         </h3>
         <div className="timeline-card">
-          Detect debris {'->'} Match orbit {'->'} Approach {'->'} Deploy net {'->'} Stabilize {'->'} Prepare deorbit
-        </div>
-      </div>
-
-      <div className="panel-section recommendation-box">
-        <h3 className="section-title" style={{ color: '#00d4ff' }}>
-          <Zap size={13} /> Cleanup Recommendation
-        </h3>
-        <div className="recommendation-method">Net Capture Recommended</div>
-        <div className="recommendation-reason">
-          <span className="reason-label">Reason:</span> Best for non-cooperative tumbling debris because it does not require precise docking.
-        </div>
-        <div className="recommendation-tags">
-          <span className="tag">Concept</span>
-          <span className="tag">Public TLE Data</span>
-          <span className="tag">Estimated Dynamics</span>
+          {captureMethod === 'NET_CAPTURE' && 'Detect debris -> Match orbit -> Approach -> Deploy net -> Stabilize -> Prepare deorbit'}
+          {captureMethod === 'ROBOTIC_ARM' && 'Detect debris -> Match orbit -> Approach -> Grapple target -> Stabilize -> Prepare deorbit'}
+          {captureMethod === 'MAGNETIC_TETHER' && 'Detect debris -> Match orbit -> Approach -> Attach tether -> Unfurl -> Prepare deorbit'}
+          {captureMethod === 'LASER_PUSH' && 'Detect debris -> Target acquisition -> Align optics -> Fire laser -> Verify deflection -> Complete'}
         </div>
       </div>
 
