@@ -1,0 +1,2 @@
+/* AstroIntellect — base reset only; all styles are in styles.css */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
