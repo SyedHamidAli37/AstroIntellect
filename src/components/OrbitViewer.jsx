@@ -385,7 +385,7 @@ export default function OrbitViewer({
          }
 
          updateLabel(debrisMeshRef, debrisLabelRef, true)
-         updateLabel(cleanupMeshRef, cleanupLabelRef, simulationActive && missionPhase !== 'SECURED' && missionPhase !== 'IDLE')
+         updateLabel(cleanupMeshRef, cleanupLabelRef, true)
       }
 
       controls.update()
@@ -431,46 +431,55 @@ export default function OrbitViewer({
     const now = new Date()
     const pathPositions = generateOrbitPath(satrec.current, now, 90, 60)
 
-    const orbitCurve = new THREE.CatmullRomCurve3(pathPositions, true)
-    const orbitGeometry = new THREE.TubeGeometry(orbitCurve, 128, 0.005, 8, true)
-    const orbitMaterial = new THREE.MeshBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.8 })
+    const VISUAL_SCALE = 1.9 // Exaggerate orbit radius for demo clarity
+
+    const orbitCurve = new THREE.CatmullRomCurve3(pathPositions.map(p => p.clone().multiplyScalar(VISUAL_SCALE)), true)
+    const orbitGeometry = new THREE.TubeGeometry(orbitCurve, 128, 0.012, 8, true)
+    const orbitMaterial = new THREE.MeshBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.8, depthTest: false })
     orbitLineRef.current = new THREE.Mesh(orbitGeometry, orbitMaterial)
+    orbitLineRef.current.renderOrder = 999
     scene.add(orbitLineRef.current)
 
     const debrisGroup = new THREE.Group()
-    const debrisGeom = new THREE.SphereGeometry(0.05, 32, 32)
-    const debrisMat = new THREE.MeshBasicMaterial({ color: riskColor })
+    const debrisGeom = new THREE.SphereGeometry(0.12, 32, 32)
+    const debrisMat = new THREE.MeshBasicMaterial({ color: riskColor, depthTest: false })
     const debrisCore = new THREE.Mesh(debrisGeom, debrisMat)
+    debrisCore.renderOrder = 1000
     
-    const haloGeom = new THREE.SphereGeometry(0.08, 32, 32)
-    const haloMat = new THREE.MeshBasicMaterial({ color: riskColor, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending })
+    const haloGeom = new THREE.SphereGeometry(0.18, 32, 32)
+    const haloMat = new THREE.MeshBasicMaterial({ color: riskColor, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthTest: false })
     const debrisHalo = new THREE.Mesh(haloGeom, haloMat)
+    debrisHalo.renderOrder = 1001
     
     debrisGroup.add(debrisCore)
     debrisGroup.add(debrisHalo)
     debrisMeshRef.current = debrisGroup
     scene.add(debrisMeshRef.current)
 
-    const cleanupGeom = new THREE.SphereGeometry(0.04, 32, 32)
-    const cleanupMat = new THREE.MeshBasicMaterial({ color: 0x00d4ff })
+    const cleanupGeom = new THREE.SphereGeometry(0.1, 32, 32)
+    const cleanupMat = new THREE.MeshBasicMaterial({ color: 0x00d4ff, depthTest: false })
     cleanupMeshRef.current = new THREE.Mesh(cleanupGeom, cleanupMat)
+    cleanupMeshRef.current.renderOrder = 1002
     scene.add(cleanupMeshRef.current)
 
-    const interceptGeom = new THREE.CylinderGeometry(0.004, 0.004, 1, 8)
+    const interceptGeom = new THREE.CylinderGeometry(0.008, 0.008, 1, 8)
     interceptGeom.translate(0, 0.5, 0)
     interceptGeom.rotateX(Math.PI / 2)
-    const interceptMat = new THREE.MeshBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.8 })
+    const interceptMat = new THREE.MeshBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.8, depthTest: false })
     interceptLineRef.current = new THREE.Mesh(interceptGeom, interceptMat)
+    interceptLineRef.current.renderOrder = 998
     scene.add(interceptLineRef.current)
 
-    const ringGeom = new THREE.SphereGeometry(0.04, 16, 16)
+    const ringGeom = new THREE.SphereGeometry(0.1, 16, 16)
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0x00d4ff,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.35,
       wireframe: true,
+      depthTest: false,
     })
     netRingRef.current = new THREE.Mesh(ringGeom, ringMat)
+    netRingRef.current.renderOrder = 1003
     netRingRef.current.visible = false
     scene.add(netRingRef.current)
 
@@ -481,18 +490,16 @@ export default function OrbitViewer({
 
       if (!info || !cleanupInfo || !debrisMeshRef.current || !cleanupMeshRef.current || !interceptLineRef.current) return
 
-      const debrisPos = geodeticToVector3(info.latitude, info.longitude, info.altitude)
-      const cleanupPosBase = geodeticToVector3(cleanupInfo.latitude, cleanupInfo.longitude, cleanupInfo.altitude)
+      const debrisPos = geodeticToVector3(info.latitude, info.longitude, info.altitude).multiplyScalar(VISUAL_SCALE)
+      const cleanupPosBase = geodeticToVector3(cleanupInfo.latitude, cleanupInfo.longitude, cleanupInfo.altitude).multiplyScalar(VISUAL_SCALE)
       
-      // Offset highly outward from earth center to ensure clear demo visibility
-      const outwardDir = cleanupPosBase.clone().normalize()
-      const cleanupPos = cleanupPosBase.add(outwardDir.multiplyScalar(0.08))
+      // Offset heavily backward along orbit to keep it visibly far from target during idle
+      const cleanupPos = cleanupPosBase.clone()
 
       debrisPositionRef.current.copy(debrisPos)
       cleanupBasePositionRef.current.copy(cleanupPos)
       debrisMeshRef.current.position.copy(debrisPos)
       cleanupMeshRef.current.position.copy(cleanupPos)
-      interceptLineRef.current.geometry.setFromPoints([cleanupPos, debrisPos])
 
       if (netRingRef.current) {
         netRingRef.current.position.copy(debrisPos)
@@ -516,11 +523,15 @@ export default function OrbitViewer({
   const handleFocusTarget = useCallback(() => {
     if (!debrisMeshRef.current || !cameraRef.current || !controlsRef.current) return
     setFocused(true)
-    const targetPos = debrisMeshRef.current.position.clone()
-    controlsRef.current.target.copy(targetPos)
+    
+    // Look at Earth center to keep globe centered
+    controlsRef.current.target.set(0, 0, 0)
 
+    // Move camera on the exact vector of the debris, looking back at Earth
+    // This perfectly places the debris in the front-facing side for demo clarity!
+    const targetPos = debrisMeshRef.current.position.clone()
     const dir = targetPos.clone().normalize()
-    cameraRef.current.position.copy(targetPos).add(dir.multiplyScalar(3.2))
+    cameraRef.current.position.copy(dir.multiplyScalar(6.0))
   }, [])
 
   const handleResetView = useCallback(() => {
@@ -558,33 +569,102 @@ export default function OrbitViewer({
           Reset View
         </button>
       </div>
-      <div className="simulation-labels">
-        {simulationActive && missionPhase === 'TRACKING' && <div className="sim-label tracking">TARGET LOCKED</div>}
-        {simulationActive && missionPhase === 'INTERCEPT' && <div className="sim-label intercept">INTERCEPTING</div>}
-        {simulationActive && missionPhase === 'NET_CAPTURE' && (
-          <div className="sim-label capture">
-            {captureMethod === 'NET_CAPTURE' && 'NET DEPLOYED'}
-            {captureMethod === 'ROBOTIC_ARM' && 'ARM GRAPPLED'}
-            {captureMethod === 'MAGNETIC_TETHER' && 'TETHER ATTACHED'}
-            {captureMethod === 'LASER_PUSH' && 'LASER FIRING'}
-          </div>
-        )}
-        {missionPhase === 'SECURED' && <div className="sim-label secured">TARGET SECURED</div>}
-      </div>
-      <div className="sim-disclaimer-overlay">
-        Visualized cleanup concept — sizes and motion exaggerated for demo clarity.
-      </div>
-      <div className="viewer-legend">
-        <div className="legend-item"><span className="legend-dot debris" /> Debris Target</div>
-        <div className="legend-item"><span className="legend-dot cleanup" /> CleanupSat-1</div>
-        <div className="legend-item"><span className="legend-dot secured" /> Secured Target</div>
-        <div className="legend-item"><span className="legend-line intercept" /> Intercept Path</div>
-      </div>
-      <div ref={debrisLabelRef} className="object-label debris-label" style={{ position: 'absolute', opacity: 0, top: 0, left: 0 }}>
-        DEBRIS TARGET
-      </div>
-      <div ref={cleanupLabelRef} className="object-label cleanup-label" style={{ position: 'absolute', opacity: 0, top: 0, left: 0 }}>
-        CLEANUPSAT-1
+      {/* 2D Mission Overlay for Guaranteed Hackathon Visibility */}
+      <div className="mission-visual-overlay">
+        <svg width="100%" height="100%" style={{ position: 'absolute' }}>
+          {/* Orbit Path */}
+          <ellipse 
+            cx="50%" cy="50%" rx="35%" ry="25%" 
+            fill="none" 
+            stroke="rgba(0, 212, 255, 0.3)" 
+            strokeWidth="3"
+            className={missionPhase === 'TRACKING' ? 'pulse-stroke' : ''} 
+          />
+
+          {/* Intercept Line */}
+          <line 
+            x1={`${35 + captureProgress * 25}%`} 
+            y1={`${65 - captureProgress * 35}%`} 
+            x2="60%" y2="30%" 
+            stroke="rgba(0, 212, 255, 0.7)" 
+            strokeWidth="4" 
+            strokeDasharray="12 6"
+            className={missionPhase === 'INTERCEPT' ? 'anim-dash' : ''}
+          />
+          
+          {/* Net Capture Expanding Ring */}
+          {(missionPhase === 'NET_CAPTURE' || missionPhase === 'NET CAPTURE') && (
+            <circle 
+              cx="60%" cy="30%" 
+              r={`${30 + captureProgress * 80}`} 
+              fill="rgba(0, 212, 255, 0.15)" 
+              stroke="rgba(0, 212, 255, 0.9)" 
+              strokeWidth="4" 
+            />
+          )}
+
+          {/* Secured Stable Ring */}
+          {missionPhase === 'SECURED' && (
+            <circle 
+              cx="60%" cy="30%" 
+              r="110" 
+              fill="rgba(46, 213, 115, 0.2)" 
+              stroke="rgba(46, 213, 115, 0.9)" 
+              strokeWidth="5" 
+              className="pulse-stroke-green"
+            />
+          )}
+
+          {/* CleanupSat-1 */}
+          <circle 
+            cx={`${35 + captureProgress * 25}%`} 
+            cy={`${65 - captureProgress * 35}%`} 
+            r="12" 
+            fill="#00d4ff" 
+            className={(missionPhase === 'INTERCEPT' || missionPhase === 'TRACKING') ? 'pulse-fill' : ''}
+          />
+
+          {/* Debris Target */}
+          <circle 
+            cx="60%" cy="30%" 
+            r="16" 
+            fill={missionPhase === 'SECURED' ? "#2ed573" : "#ff4757"} 
+            className={(missionPhase === 'TRACKING' || missionPhase === 'IDLE') ? 'pulse-fill-warning' : ''}
+          />
+        </svg>
+
+        {/* Floating Overlay Labels */}
+        <div className="overlay-floating-label warning" style={{ top: '26%', left: '62%' }}>
+           DEBRIS TARGET
+        </div>
+        <div className="overlay-floating-label accent" style={{ top: `calc(${68 - captureProgress * 35}% + 15px)`, left: `calc(${32 + captureProgress * 25}% - 40px)` }}>
+           CLEANUPSAT-1
+        </div>
+
+        <div className="simulation-labels">
+          {simulationActive && missionPhase === 'TRACKING' && <div className="sim-label tracking">TARGET LOCKED</div>}
+          {simulationActive && missionPhase === 'INTERCEPT' && <div className="sim-label intercept">INTERCEPTING</div>}
+          {simulationActive && (missionPhase === 'NET_CAPTURE' || missionPhase === 'NET CAPTURE') && (
+            <div className="sim-label capture">
+              {captureMethod === 'NET_CAPTURE' && 'NET DEPLOYED'}
+              {captureMethod === 'ROBOTIC_ARM' && 'ARM GRAPPLED'}
+              {captureMethod === 'MAGNETIC_TETHER' && 'TETHER ATTACHED'}
+              {captureMethod === 'LASER_PUSH' && 'LASER FIRING'}
+            </div>
+          )}
+          {missionPhase === 'SECURED' && <div className="sim-label secured">TARGET SECURED</div>}
+        </div>
+
+        <div className="viewer-legend">
+          <div className="legend-item"><span className="legend-dot debris" /> Debris Target</div>
+          <div className="legend-item"><span className="legend-dot cleanup" /> CleanupSat-1</div>
+          <div className="legend-item"><span className="legend-dot secured" /> Secured Target</div>
+          <div className="legend-item"><span className="legend-line intercept" /> Intercept Path</div>
+        </div>
+
+        <div className="sim-disclaimer-overlay">
+          Visual cleanup simulation — sizes and motion exaggerated for demo clarity.
+        </div>
       </div>
       {!viewerReady && (
         <div className="viewer-loading">
