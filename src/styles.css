@@ -970,3 +970,120 @@ html, body, #root {
   line-height: 1.6;
   color: var(--text);
 }
+
+/* ─────────────────────────────────────────
+   Gemini Copilot
+   ───────────────────────────────────────── */
+.copilot-section {
+  background: linear-gradient(135deg, rgba(162, 0, 255, 0.08) 0%, transparent 100%);
+  border-left: 2px solid #a200ff;
+}
+
+.copilot-title {
+  color: #c47aff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.copilot-desc {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+.copilot-missing-key {
+  font-size: 11px;
+  color: var(--warning);
+  padding: 8px 12px;
+  background: var(--warning-dim);
+  border: 1px solid rgba(255, 159, 28, 0.3);
+  border-radius: var(--radius-sm);
+}
+
+.copilot-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.copilot-btn {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--ff-ui);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.copilot-btn:hover:not(:disabled) {
+  border-color: #a200ff;
+  background: rgba(162, 0, 255, 0.1);
+  color: #e2baff;
+}
+
+.copilot-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.copilot-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #c47aff;
+  margin-top: 8px;
+}
+
+.copilot-loading .spinner {
+  animation: spin 1s linear infinite;
+}
+
+.copilot-error {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--danger);
+  padding: 8px;
+  background: var(--danger-dim);
+  border: 1px solid rgba(255, 71, 87, 0.3);
+  border-radius: var(--radius-sm);
+}
+
+.copilot-response-card {
+  position: relative;
+  margin-top: 8px;
+  padding: 12px;
+  background: rgba(11, 16, 32, 0.6);
+  border: 1px solid rgba(162, 0, 255, 0.2);
+  border-radius: var(--radius-sm);
+}
+
+.copilot-response-content {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #e2baff;
+  white-space: pre-wrap;
+}
+
+.copilot-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.2s;
+}
+
+.copilot-copy-btn:hover {
+  color: #c47aff;
+}

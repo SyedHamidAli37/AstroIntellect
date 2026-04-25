@@ -1,4 +1,5 @@
 import { MapPin, Gauge, Layers, Zap, Clock, Shield, AlertTriangle } from 'lucide-react'
+import GeminiCopilot from './GeminiCopilot'
 
 const RISK_META = {
   CRITICAL: { label: 'CRITICAL', color: '#ff4757', icon: '!' },
@@ -145,6 +146,14 @@ export default function MissionPanel({
           <span className="tag">Estimated Dynamics</span>
         </div>
       </div>
+
+      <GeminiCopilot
+        selectedObject={selectedObject}
+        position={position}
+        tleSource={tleSource}
+        missionPhase={missionPhase}
+        captureMethod={captureMethod}
+      />
 
       <div className="panel-section timeline-box">
         <h3 className="section-title">
