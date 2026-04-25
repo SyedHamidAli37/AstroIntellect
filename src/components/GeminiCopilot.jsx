@@ -7,6 +7,7 @@ export default function GeminiCopilot({
   tleSource,
   missionPhase,
   captureMethod,
+  onBriefGenerated,
 }) {
   const [loading, setLoading] = useState(false)
   const [response, setResponse] = useState(null)
@@ -92,6 +93,10 @@ App State:
       const data = await res.json()
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated.'
       setResponse(text)
+      
+      if (promptType === 'missionBrief' && onBriefGenerated) {
+        onBriefGenerated(text)
+      }
     } catch (err) {
       setError(err.message)
     } finally {

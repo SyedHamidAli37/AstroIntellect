@@ -30,6 +30,7 @@ export default function MissionPanel({
   onRunCaptureSimulation,
   phaseMessage,
   methodLabel,
+  onBriefGenerated,
 }) {
   if (!selectedObject) return null
 
@@ -153,6 +154,7 @@ export default function MissionPanel({
         tleSource={tleSource}
         missionPhase={missionPhase}
         captureMethod={captureMethod}
+        onBriefGenerated={onBriefGenerated}
       />
 
       <div className="panel-section timeline-box">

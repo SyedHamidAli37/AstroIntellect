@@ -4,6 +4,8 @@ import MissionPanel from './components/MissionPanel'
 import StatusCards from './components/StatusCards'
 import ErrorBoundary from './components/ErrorBoundary'
 import { MissionPanelFallback } from './components/MissionControlFallback'
+import MissionBrief from './components/MissionBrief'
+import ImpactAbout from './components/ImpactAbout'
 import { ORBITAL_OBJECTS, fetchTleData } from './data/orbitalObjects'
 import './styles.css'
 
@@ -41,6 +43,9 @@ export default function App() {
   const [simulationActive, setSimulationActive] = useState(false)
   const [phaseStartedAt, setPhaseStartedAt] = useState(null)
   const [captureProgress, setCaptureProgress] = useState(0)
+  const [activeTab, setActiveTab] = useState('simulator')
+  const [geminiBrief, setGeminiBrief] = useState(null)
+  
   const phaseTimeoutsRef = useRef([])
   const phaseProgressTimerRef = useRef(null)
 
@@ -278,8 +283,21 @@ export default function App() {
         methodLabel={METHOD_OPTIONS[cleanupMethod]} 
       />
 
-      <main className="main-content">
-        <div className="globe-area">
+      <div className="app-tabs">
+        <button className={`app-tab-btn ${activeTab === 'simulator' ? 'active' : ''}`} onClick={() => setActiveTab('simulator')}>
+          Capture Simulator
+        </button>
+        <button className={`app-tab-btn ${activeTab === 'brief' ? 'active' : ''}`} onClick={() => setActiveTab('brief')}>
+          Mission Brief
+        </button>
+        <button className={`app-tab-btn ${activeTab === 'impact' ? 'active' : ''}`} onClick={() => setActiveTab('impact')}>
+          Impact & About
+        </button>
+      </div>
+
+      {activeTab === 'simulator' && (
+        <main className="main-content">
+          <div className="globe-area">
           {loading && (
             <div className="tle-loading">
               <div className="loading-spinner" />
@@ -343,9 +361,29 @@ export default function App() {
             onRunCaptureSimulation={runCaptureSimulation}
             phaseMessage={getPhaseMessage(missionPhase, cleanupMethod)}
             methodLabel={METHOD_OPTIONS[cleanupMethod]}
+            onBriefGenerated={setGeminiBrief}
           />
         </ErrorBoundary>
       </main>
+      )}
+
+      {activeTab === 'brief' && (
+        <main className="main-content tab-container">
+          <MissionBrief 
+            selectedObject={selectedObject}
+            position={position}
+            captureMethod={METHOD_OPTIONS[cleanupMethod]}
+            missionPhase={missionPhase}
+            geminiBrief={geminiBrief}
+          />
+        </main>
+      )}
+
+      {activeTab === 'impact' && (
+        <main className="main-content tab-container">
+          <ImpactAbout />
+        </main>
+      )}
     </div>
   )
 }
