@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import OrbitViewer from './components/OrbitViewer'
 import MissionPanel from './components/MissionPanel'
 import StatusCards from './components/StatusCards'
@@ -17,12 +17,30 @@ function PaneState({ title, detail, tone = 'loading' }) {
 }
 
 export default function App() {
+  const PHASE_DURATIONS = {
+    TRACKING: 2000,
+    INTERCEPT: 6000,
+    NET_CAPTURE: 4000,
+  }
+
+  const METHOD_OPTIONS = {
+    NET_CAPTURE: 'Net Capture',
+    ROBOTIC_ARM: 'Robotic Arm',
+    MAGNETIC_TETHER: 'Magnetic Tether',
+    LASER_PUSH: 'Laser Push',
+  }
+
   const [selectedId, setSelectedId] = useState('fengyun1c')
   const [tleData, setTleData] = useState(null)
   const [position, setPosition] = useState(null)
   const [loading, setLoading] = useState(false)
   const [tleError, setTleError] = useState(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [cleanupMethod, setCleanupMethod] = useState('NET_CAPTURE')
+  const [missionPhase, setMissionPhase] = useState('TRACKING')
+  const [simulationActive, setSimulationActive] = useState(false)
+  const [phaseStartedAt, setPhaseStartedAt] = useState(null)
+  const phaseTimeoutsRef = useRef([])
 
   const selectedObject = ORBITAL_OBJECTS.find((o) => o.id === selectedId)
 
@@ -47,9 +65,60 @@ export default function App() {
     if (selectedObject) loadTle(selectedObject)
   }, [selectedObject, loadTle])
 
+  useEffect(() => {
+    return () => {
+      phaseTimeoutsRef.current.forEach((id) => clearTimeout(id))
+      phaseTimeoutsRef.current = []
+    }
+  }, [])
+
+  useEffect(() => {
+    phaseTimeoutsRef.current.forEach((id) => clearTimeout(id))
+    phaseTimeoutsRef.current = []
+    setSimulationActive(false)
+    setMissionPhase('TRACKING')
+    setPhaseStartedAt(null)
+  }, [selectedId])
+
   const handleSelect = (id) => {
     setSelectedId(id)
     setDropdownOpen(false)
+  }
+
+  const runCaptureSimulation = useCallback(() => {
+    phaseTimeoutsRef.current.forEach((id) => clearTimeout(id))
+    phaseTimeoutsRef.current = []
+
+    const trackingStart = Date.now()
+    setSimulationActive(true)
+    setMissionPhase('TRACKING')
+    setPhaseStartedAt(trackingStart)
+
+    const interceptTimeout = setTimeout(() => {
+      const interceptStart = Date.now()
+      setMissionPhase('INTERCEPT')
+      setPhaseStartedAt(interceptStart)
+    }, PHASE_DURATIONS.TRACKING)
+
+    const netTimeout = setTimeout(() => {
+      const netStart = Date.now()
+      setMissionPhase('NET CAPTURE')
+      setPhaseStartedAt(netStart)
+    }, PHASE_DURATIONS.TRACKING + PHASE_DURATIONS.INTERCEPT)
+
+    const securedTimeout = setTimeout(() => {
+      setMissionPhase('SECURED')
+      setPhaseStartedAt(Date.now())
+    }, PHASE_DURATIONS.TRACKING + PHASE_DURATIONS.INTERCEPT + PHASE_DURATIONS.NET_CAPTURE)
+
+    phaseTimeoutsRef.current = [interceptTimeout, netTimeout, securedTimeout]
+  }, [])
+
+  const phaseMessageMap = {
+    TRACKING: 'Tracking target and estimating orbit',
+    INTERCEPT: 'CleanupSat-1 matching orbit and approaching target',
+    'NET CAPTURE': 'NET DEPLOYED',
+    SECURED: 'Target secured for controlled deorbit planning',
   }
 
   const RISK_COLORS = {
@@ -184,6 +253,10 @@ export default function App() {
                 selectedObject={selectedObject}
                 tleData={tleData}
                 onPositionUpdate={setPosition}
+                missionPhase={missionPhase}
+                simulationActive={simulationActive}
+                phaseStartedAt={phaseStartedAt}
+                captureMethod={cleanupMethod}
               />
             </ErrorBoundary>
           )}
@@ -200,6 +273,13 @@ export default function App() {
             selectedObject={selectedObject}
             position={position}
             tleSource={tleData?.source}
+            missionPhase={missionPhase}
+            simulationActive={simulationActive}
+            captureMethod={cleanupMethod}
+            onCaptureMethodChange={setCleanupMethod}
+            onRunCaptureSimulation={runCaptureSimulation}
+            phaseMessage={phaseMessageMap[missionPhase]}
+            methodLabel={METHOD_OPTIONS[cleanupMethod]}
           />
         </ErrorBoundary>
       </main>

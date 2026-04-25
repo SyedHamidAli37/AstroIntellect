@@ -695,3 +695,121 @@ html, body, #root {
   background: transparent;
   min-height: 120px;
 }
+
+.three-container {
+  width: 100%;
+  height: 100%;
+}
+
+.net-label {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 12;
+  padding: 6px 10px;
+  border: 1px solid rgba(0, 212, 255, 0.5);
+  border-radius: 4px;
+  background: rgba(0, 212, 255, 0.12);
+  color: var(--accent);
+  font-family: var(--ff-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 8px var(--accent-glow);
+}
+
+.simulation-box {
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.08) 0%, rgba(0, 212, 255, 0.02) 100%);
+}
+
+.run-sim-btn {
+  width: 100%;
+  border: 1px solid rgba(0, 212, 255, 0.42);
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 212, 255, 0.06));
+  color: var(--accent);
+  font-family: var(--ff-ui);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 9px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.1s, box-shadow 0.2s;
+}
+
+.run-sim-btn:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.28), 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.run-sim-btn:active {
+  transform: translateY(1px);
+}
+
+.phase-chip-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.phase-chip {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 7px;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.phase-chip--active {
+  color: var(--accent);
+  border-color: rgba(0, 212, 255, 0.38);
+  background: rgba(0, 212, 255, 0.12);
+}
+
+.phase-message {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.phase-note {
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.method-select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(11, 16, 32, 0.9);
+  color: var(--text);
+  font-family: var(--ff-ui);
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+}
+
+.method-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.24);
+}
+
+.timeline-box {
+  background: linear-gradient(135deg, rgba(224, 232, 255, 0.04), rgba(0, 212, 255, 0.04));
+}
+
+.timeline-card {
+  border: 1px dashed rgba(0, 212, 255, 0.28);
+  background: rgba(0, 212, 255, 0.06);
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text);
+}
